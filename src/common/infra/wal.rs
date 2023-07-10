@@ -218,8 +218,8 @@ impl Manager {
             key,
             use_cache,
         ));
-        let mut data = self.data.get(thread_id).unwrap().write().unwrap();
         if !stream_type.eq(&StreamType::EnrichmentTables) {
+            let mut data = self.data.get(thread_id).unwrap().write().unwrap();
             data.insert(full_key, file.clone());
         };
         file

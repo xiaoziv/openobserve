@@ -12,5 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use itertools::Itertools;
+
 pub mod disk;
 pub mod memory;
+
+fn get_partition_key_from_filename(filename: &str) -> String {
+    let mut pk = filename
+        .split('_')
+        .filter(|&x| x.contains('='))
+        .map(|key| key.replace('.', "_"))
+        .join("/");
+    pk.push('/');
+    pk
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_partition_key_from_filename() {
+        let filename = "org/logs/stream_name/2022/10/12/13/";
+        let partition_key = get_partition_key_from_filename(filename);
+        println!("{}", partition_key);
+    }
+}

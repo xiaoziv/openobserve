@@ -17,11 +17,11 @@ use datafusion::arrow::json::{reader::infer_json_schema, RawReaderBuilder};
 use std::{io::BufReader, sync::Arc};
 use tokio::{sync::Semaphore, task, time};
 
-use crate::common::infra::{
+use crate::{common::infra::{
     cluster,
     config::{CONFIG, FILE_EXT_PARQUET},
     metrics, storage, wal,
-};
+}, job::files::get_partition_key_from_filename};
 use crate::common::meta::{common::FileMeta, StreamType};
 use crate::common::{json, utils::populate_file_meta};
 use crate::service::{db, schema::schema_evolution, search::datafusion::new_writer};
@@ -56,7 +56,7 @@ async fn move_files_to_storage() -> Result<(), anyhow::Error> {
         if columns.len() != 5 {
             continue;
         }
-        let _ = columns[0].to_string();
+        // let _ = columns[0].to_string();
         let org_id = columns[1].to_string();
         let stream_type: StreamType = StreamType::from(columns[2]);
         let stream_name = columns[3].to_string();
@@ -77,14 +77,7 @@ async fn move_files_to_storage() -> Result<(), anyhow::Error> {
             continue;
         }
 
-        let mut partitions = file_name.split('_').collect::<Vec<&str>>();
-        partitions.retain(|&x| x.contains('='));
-        let mut partition_key = String::from("");
-        for key in partitions {
-            let key = key.replace('.', "_");
-            partition_key.push_str(&key);
-            partition_key.push('/');
-        }
+        let partition_key = get_partition_key_from_filename(&file_name);
 
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let task: task::JoinHandle<Result<(), anyhow::Error>> = task::spawn(async move {

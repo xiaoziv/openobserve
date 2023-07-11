@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{fs, path::Path};
+use std::fs;
 use tokio::time;
 
-use crate::common::file::scan_files;
+use crate::common::file::scan_files_new;
 use crate::common::infra::cluster;
 use crate::common::infra::config::CONFIG;
 use crate::common::infra::storage;
@@ -44,44 +44,29 @@ pub async fn run() -> Result<(), anyhow::Error> {
  * upload compressed file_list to storage & delete moved files from local
  */
 async fn move_file_list_to_storage() -> Result<(), anyhow::Error> {
-    let data_dir = Path::new(&CONFIG.common.data_wal_dir)
-        .canonicalize()
-        .unwrap();
-
     let pattern = format!("{}/file_list/*.json", &CONFIG.common.data_wal_dir);
-    let files = scan_files(&pattern);
+    let files = scan_files_new(&pattern)?;
 
     for file in files {
-        let local_file = file.to_owned();
-        let local_path = Path::new(&file).canonicalize().unwrap();
-        let file_path = local_path
-            .strip_prefix(&data_dir)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .replace('\\', "/");
-        let columns = file_path.split('/').collect::<Vec<&str>>();
-        // check file is in use
-        if columns.len() != 2 {
-            continue;
-        }
-        let file_name = columns[1].to_string();
-
+        let local_file = file.to_string_lossy();
+        let file_name = match file.file_name() {
+            Some(base_name) => base_name.to_string_lossy(),
+            None => {
+                log::error!("[JOB] Failed to parse basename from {}", local_file);
+                continue;
+            }
+        };
         // check the file is using for write
         if wal::check_in_use("", "", StreamType::Filelist, &file_name) {
             continue;
         }
-        log::info!("[JOB] convert file_list: {}", file);
+        log::info!("[JOB] convert file_list: {}", local_file);
 
         match upload_file(&local_file, &file_name).await {
-            Ok(_) => match fs::remove_file(&local_file) {
+            Ok(_) => match fs::remove_file(&file) {
                 Ok(_) => {}
                 Err(e) => {
-                    log::error!(
-                        "[JOB] Failed to remove file_list {}: {}",
-                        local_file,
-                        e.to_string()
-                    )
+                    log::error!("[JOB] Failed to remove file_list {}: {}", local_file, e)
                 }
             },
             Err(e) => log::error!("[JOB] Error while uploading file_list to storage {}", e),

@@ -20,7 +20,7 @@ use datafusion::{
 use std::{io::BufReader, path::Path, sync::Arc, time::UNIX_EPOCH};
 use tracing::{info_span, Instrument};
 
-use crate::common::file::{get_file_contents, get_file_meta, scan_files};
+use crate::common::file::{get_file_contents, get_file_meta, scan_files_new};
 use crate::common::infra::{
     cache::tmpfs,
     config::CONFIG,
@@ -221,7 +221,7 @@ async fn get_file_list(sql: &Sql, stream_type: meta::StreamType) -> Result<Vec<S
         "{}/files/{}/{stream_type}/{}/*.json",
         &CONFIG.common.data_wal_dir, &sql.org_id, &sql.stream_name
     );
-    let files = scan_files(&pattern);
+    let files = scan_files_new(&pattern).map_err(Error::from)?;
 
     let mut result = Vec::new();
     let data_dir = match Path::new(&CONFIG.common.data_wal_dir).canonicalize() {
@@ -230,11 +230,12 @@ async fn get_file_list(sql: &Sql, stream_type: meta::StreamType) -> Result<Vec<S
             return Ok(result);
         }
     };
-    let time_range = sql.meta.time_range.unwrap_or((0, 0));
+    let time_range = sql.meta.time_range.unwrap_or_default();
     for file in files {
         if time_range != (0, 0) {
+            let filename = file.to_string_lossy();
             // check wal file created time, we can skip files which created time > end_time
-            let file_meta = get_file_meta(&file).map_err(Error::from)?;
+            let file_meta = get_file_meta(&filename).map_err(Error::from)?;
             let file_modified = file_meta
                 .modified()
                 .unwrap_or(UNIX_EPOCH)
@@ -257,7 +258,7 @@ async fn get_file_list(sql: &Sql, stream_type: meta::StreamType) -> Result<Vec<S
             {
                 log::info!(
                     "skip wal file: {} time_range: [{},{}]",
-                    file,
+                    filename,
                     file_created,
                     file_modified
                 );

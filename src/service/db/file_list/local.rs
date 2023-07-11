@@ -21,7 +21,7 @@ use crate::common::meta::{
     common::{FileKey, FileMeta},
     StreamType,
 };
-use crate::common::{file::scan_files, json};
+use crate::common::{file::scan_files_new, json};
 
 pub async fn set(key: &str, meta: FileMeta, deleted: bool) -> Result<(), anyhow::Error> {
     let file_data = FileKey {
@@ -55,9 +55,10 @@ pub async fn set(key: &str, meta: FileMeta, deleted: bool) -> Result<(), anyhow:
 pub async fn get_all() -> Result<Vec<FileKey>, anyhow::Error> {
     let mut result = Vec::new();
     let pattern = format!("{}/file_list/*.json", &CONFIG.common.data_wal_dir);
-    let files = scan_files(&pattern);
+    let files = scan_files_new(&pattern)?;
     let mut line_num = 0;
     for file in files {
+        let filename = file.to_string_lossy();
         line_num += 1;
         let f = File::open(&file).expect("open file list failed");
         let reader = BufReader::new(f);
@@ -72,7 +73,7 @@ pub async fn get_all() -> Result<Vec<FileKey>, anyhow::Error> {
                 Err(err) => {
                     panic!(
                         "parse file list failed:\nfile: {}\nline_no: {}\nline: {}\nerr: {}",
-                        file, line_num, line, err
+                        filename, line_num, line, err
                     );
                 }
             };

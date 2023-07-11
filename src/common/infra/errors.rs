@@ -22,6 +22,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("IoError# {0}")]
     IoError(#[from] std::io::Error),
+    #[error("PatternError #{0}")]
+    PatternError(#[from] glob::PatternError),
     #[error("DbError# {0}")]
     DbError(#[from] DbError),
     #[error("EtcdError# {0}")]

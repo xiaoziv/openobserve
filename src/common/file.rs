@@ -14,8 +14,10 @@
 
 use std::{
     fs::{File, Metadata},
-    io::{Read, Write},
+    io::{Read, Write}, path::PathBuf,
 };
+
+use glob::PatternError;
 
 #[inline(always)]
 pub fn get_file_meta(file: &str) -> Result<Metadata, std::io::Error> {
@@ -44,6 +46,11 @@ pub fn scan_files(pattern: &str) -> Vec<String> {
         .unwrap()
         .map(|m| m.unwrap().to_str().unwrap().to_string())
         .collect()
+}
+
+#[inline(always)]
+pub fn scan_files_new(pattern: &str) -> Result<Vec<PathBuf>, PatternError> {
+    Ok(glob::glob(pattern)?.map(|x| x.unwrap()).collect())
 }
 
 #[cfg(test)]
